@@ -706,34 +706,3 @@ func showChineseDetail(chinese string) string {
 
 	return strings.Join(details, "\n")
 }
-
-// 解压缩并导入数据库文件
-func importDatabase(gzFile, dbFile string) error {
-	// 打开.gz文件
-	f, err := os.Open(gzFile)
-	if err != nil {
-		return fmt.Errorf("无法打开文件 %s: %v", gzFile, err)
-	}
-	defer f.Close()
-
-	// 创建一个gzip.Reader
-	gr, err := gzip.NewReader(f)
-	if err != nil {
-		return fmt.Errorf("无法创建gzip.Reader: %v", err)
-	}
-	defer gr.Close()
-
-	// 创建目标数据库文件
-	out, err := os.Create(dbFile)
-	if err != nil {
-		return fmt.Errorf("无法创建文件 %s: %v", dbFile, err)
-	}
-	defer out.Close()
-
-	// 将解压缩后的数据写入目标文件
-	if _, err := io.Copy(out, gr); err != nil {
-		return fmt.Errorf("解压缩失败: %v", err)
-	}
-
-	return nil
-}

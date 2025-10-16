@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -24,6 +25,7 @@ var (
 	searchHistory  []string   // 搜索历史
 	historyMutex   sync.Mutex // 保护搜索历史的并发访问
 	maxHistorySize = 20       // 最多保存20条历史
+	searchVersion  int64      // 搜索版本号，用于防止旧搜索结果覆盖新搜索结果
 )
 
 // Word 表示一个单词的完整信息
@@ -270,6 +272,9 @@ func main() {
 			inputTimer = nil
 		}
 
+		// 每次输入都递增版本号
+		currentVersion := atomic.AddInt64(&searchVersion, 1)
+
 		if searchText == "" {
 			searchMutex.Lock()
 			searchResults = []string{}
@@ -280,7 +285,7 @@ func main() {
 		}
 
 		// 在新的 goroutine 中异步查询
-		go func(query string) {
+		go func(query string, version int64) {
 			var results []string
 
 			// 判断是中文还是英文
@@ -290,6 +295,11 @@ func main() {
 				results = searchEnglish(query)
 			}
 
+			// 检查是否是最新版本，如果不是则放弃更新
+			if atomic.LoadInt64(&searchVersion) != version {
+				return
+			}
+
 			// 更新搜索结果
 			searchMutex.Lock()
 			searchResults = results
@@ -297,6 +307,11 @@ func main() {
 
 			// 在主线程中更新UI
 			app.QueueUpdateDraw(func() {
+				// 再次检查版本，确保UI更新时也是最新的
+				if atomic.LoadInt64(&searchVersion) != version {
+					return
+				}
+
 				wordList.Clear()
 				for i, word := range results {
 					index := i // 捕获循环变量
@@ -345,7 +360,7 @@ func main() {
 					}(firstWord)
 				}
 			})
-		}(searchText)
+		}(searchText, currentVersion)
 
 		// 新需求: 5秒后自动将焦点切换到单词列表，并将搜索词添加到历史
 		// 重要：这个定时器在每次输入时都会被重置，只有停止输入5秒后才会触发

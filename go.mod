@@ -1,4 +1,4 @@
-module ecdict
+module dict
 
 go 1.25
 
